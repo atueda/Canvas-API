@@ -77,7 +77,7 @@ def handle_create_canvas(ack: Ack, body: dict, client: WebClient, respond):
           "callback_id": "create_canvas_view",
           "title": {
               "type": "plain_text",
-              "text": "Create Canvas"
+              "text": "Canvasの作成"
           },
           "blocks": [
               {
@@ -85,7 +85,7 @@ def handle_create_canvas(ack: Ack, body: dict, client: WebClient, respond):
                   "block_id": "title_block",
                   "label": {
                       "type": "plain_text",
-                      "text": "Title"
+                      "text": "タイトル"
                   },
                   "element": {
                       "type": "plain_text_input",
@@ -97,14 +97,14 @@ def handle_create_canvas(ack: Ack, body: dict, client: WebClient, respond):
                   "block_id": "users_select",
                   "label": {
                       "type": "plain_text",
-                      "text": "owner select"
+                      "text": "オーナーの選択"
                   },
                   "element": {
                       "type": "users_select",
                       "action_id": "users_select",
                       "placeholder": {
                           "type": "plain_text",
-                          "text": "Select users"
+                          "text": "ユーザーを選択"
                       }
                   }
               },
@@ -113,7 +113,7 @@ def handle_create_canvas(ack: Ack, body: dict, client: WebClient, respond):
                   "block_id": "content_block",
                   "label": {
                       "type": "plain_text",
-                      "text": "Content"
+                      "text": "コンテンツ"
                   },
                   "element": {
                       "type": "plain_text_input",
@@ -179,7 +179,7 @@ def handle_create_view_submission(ack: Ack, view: dict, logger: logging.Logger):
     # 結果をユーザーに通知
     client.chat_postMessage(
         channel=user_id,
-        text=f"Canvas created successfully \nid: {canvas_id} \ntitle: {title} \n url: `https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}`"
+        text=f"Canvasを作成しました \nid: {canvas_id} \ntitle: {title} \n url: `https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}`"
     )
 
 # Canvas編集コマンドのハンドラー
@@ -195,7 +195,7 @@ def handle_edit_canvas(ack: Ack, body: dict, client: WebClient):
         "callback_id": "edit_canvas_view",
         "title": {
             "type": "plain_text",
-            "text": "Edit Canvas"
+            "text": "Canvasの更新"
         },
         "blocks": [
               {
@@ -203,7 +203,7 @@ def handle_edit_canvas(ack: Ack, body: dict, client: WebClient):
                   "block_id": "users_select",
                   "label": {
                       "type": "plain_text",
-                      "text": "users select"
+                      "text": "ユーザの選択"
                   },
                   "element": {
                       "type": "users_select",
@@ -219,7 +219,7 @@ def handle_edit_canvas(ack: Ack, body: dict, client: WebClient):
                 "block_id": "title_block",
                 "label": {
                     "type": "plain_text",
-                    "text": "Title"
+                    "text": "タイトル"
                 },
                 "element": {
                     "type": "plain_text_input",
@@ -243,7 +243,7 @@ def handle_edit_canvas(ack: Ack, body: dict, client: WebClient):
                 "block_id": "content_block",
                 "label": {
                     "type": "plain_text",
-                    "text": "Content"
+                    "text": "コンテンツ"
                 },
                 "element": {
                     "type": "plain_text_input",
@@ -312,7 +312,7 @@ def handle_edit_view_submission(ack: Ack, view: dict, logger: logging.Logger):
       # 結果をユーザーに通知
       client.chat_postMessage(
           channel=user_id,
-          text=f"Canvas updated successfully with title: {title}"
+          text=f"Canvas を更新しました title: {title} \n url: `https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
       )
     else:
         error_message = res_data.get('error')
