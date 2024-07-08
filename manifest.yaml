@@ -1,0 +1,52 @@
+display_information:
+  name: Canvas App
+  description: An app to create and edit canvases using Slack's Canvas API.
+  background_color: "#4A154B"
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: false
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: Canvas Bot
+    always_online: true
+  shortcuts:
+    - name: Create Canvas
+      type: global
+      callback_id: create_canvas_shortcut
+      description: Open a modal to create a new canvas
+    - name: Edit Canvas
+      type: global
+      callback_id: edit_canvas_shortcut
+      description: Open a modal to edit an existing canvas
+  slash_commands:
+    - command: /create_canvas
+      url: https://atueda.com/slack/events
+      description: Create a new canvas
+      usage_hint: /create_canvas
+      should_escape: false
+    - command: /edit_canvas
+      url: https://atueda.com/slack/events
+      description: Edit an existing canvas
+      usage_hint: /edit_canvas
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+      - chat:write
+      - canvases:write
+      - canvases:read
+      - app_mentions:read
+settings:
+  event_subscriptions:
+    request_url: https://atueda.com/slack/events
+    bot_events:
+      - app_mention
+      - app_home_opened
+  interactivity:
+    is_enabled: true
+    request_url: https://atueda.com/slack/events
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
