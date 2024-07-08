@@ -13,11 +13,98 @@ load_dotenv()
 logging.basicConfig(level=logging.DEBUG)
 
 client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+
 # ボットトークンとソケットモードハンドラーの設定
 app = App(
     signing_secret=os.environ["SLACK_SIGNING_SECRET"],
     token=os.environ["SLACK_BOT_TOKEN"],
 )
+
+def send_slack_request(endpoint, data):
+    json_data = json.dumps(data)
+    res = requests.post(
+        f'https://slack.com/api/{endpoint}',
+        headers={
+            'Authorization': f'Bearer {os.environ["SLACK_BOT_TOKEN"]}',
+            'Content-Type': 'application/json'
+        },
+        data=json_data
+    )
+    return res.json()
+
+def create_modal_view(callback_id, title, canvas=False):
+    blocks = []
+    if canvas:
+        blocks.append({
+            "type": "input",
+            "block_id": "canvas_id_block",
+            "label": {
+                "type": "plain_text",
+                "text": "Canvas ID"
+            },
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "canvas_id"
+            }
+        })
+    
+    blocks.extend([
+        {
+            "type": "input",
+            "block_id": "users_select",
+            "label": {
+                "type": "plain_text",
+                "text": "ユーザの選択"
+            },
+            "element": {
+                "type": "users_select",
+                "action_id": "users_select",
+                "placeholder": {
+                    "type": "plain_text",
+                    "text": "Select users"
+                }
+            }
+        },
+        {
+            "type": "input",
+            "block_id": "title_block",
+            "label": {
+                "type": "plain_text",
+                "text": "タイトル"
+            },
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "title_input",
+            }
+        },
+        {
+            "type": "input",
+            "block_id": "content_block",
+            "label": {
+                "type": "plain_text",
+                "text": "コンテンツ"
+            },
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "content_input",
+                "multiline": True
+            }
+        }
+    ])
+    
+    return {
+        "type": "modal",
+        "callback_id": callback_id,
+        "title": {
+            "type": "plain_text",
+            "text": title
+        },
+        "blocks": blocks,
+        "submit": {
+            "type": "plain_text",
+            "text": "Submit"
+        }
+    }
 
 @app.command("/hello-bolt-python")
 def command(ack, body, respond):
@@ -62,125 +149,88 @@ def command(ack, body, respond):
             ],
         },
     )
-    
+
 # Canvas作成コマンドのハンドラー
 @app.command("/create_canvas")
 def handle_create_canvas(ack: Ack, body: dict, client: WebClient, respond):
-  try:
-      ack()
-      # respond(f"Hi <@{body['user_id']}>!")
-      #user_id = body['user_id']
-      trigger_id = body['trigger_id']
-      
-      view = {
-          "type": "modal",
-          "callback_id": "create_canvas_view",
-          "title": {
-              "type": "plain_text",
-              "text": "Canvasの作成"
-          },
-          "blocks": [
-              {
-                  "type": "input",
-                  "block_id": "title_block",
-                  "label": {
-                      "type": "plain_text",
-                      "text": "タイトル"
-                  },
-                  "element": {
-                      "type": "plain_text_input",
-                      "action_id": "title_input"
-                  }
-              },
-              {
-                  "type": "input",
-                  "block_id": "users_select",
-                  "label": {
-                      "type": "plain_text",
-                      "text": "オーナーの選択"
-                  },
-                  "element": {
-                      "type": "users_select",
-                      "action_id": "users_select",
-                      "placeholder": {
-                          "type": "plain_text",
-                          "text": "ユーザーを選択"
-                      }
-                  }
-              },
-              {
-                  "type": "input",
-                  "block_id": "content_block",
-                  "label": {
-                      "type": "plain_text",
-                      "text": "コンテンツ"
-                  },
-                  "element": {
-                      "type": "plain_text_input",
-                      "action_id": "content_input",
-                      "multiline": True
-                  }
-              }
-          ],
-          "submit": {
-              "type": "plain_text",
-              "text": "Submit"
-          }
-      }
+    try:
+        ack()
+        trigger_id = body['trigger_id']
 
-      client.views_open(trigger_id=trigger_id, view=view)
+        view = create_modal_view(
+            "create_canvas_view",
+            "Canvasの作成"
+        )
 
-  except Exception as e:
-      print(f'{e}')
+        client.views_open(trigger_id=trigger_id, view=view)
+
+    except Exception as e:
+        print(f'{e}')
 
 # Canvas作成モーダルのサブミッションハンドラー
 @app.view("create_canvas_view")
 def handle_create_view_submission(ack: Ack, view: dict, logger: logging.Logger):
-    ack()
-    state_values = view['state']['values']
-    user_id = state_values['users_select']['users_select']['selected_user']
-    title = state_values['title_block']['title_input']['value']
-    content = state_values['content_block']['content_input']['value']
+    try:
+        ack()
+        state_values = view['state']['values']
+        user_id = state_values['users_select']['users_select']['selected_user']
+        title = state_values['title_block']['title_input']['value']
+        content = state_values['content_block']['content_input']['value']
 
-    data = {
-        "title": title,
-        "owner_id": user_id,
-        "document_content": {"type": "markdown", "markdown": "> standalone canvas!" + content}
-    }
-    # データをJSONに変換
-    json_data = json.dumps(data)
-    res = requests.post('https://slack.com/api/canvases.create',
-        headers = {
-          'Authorization': 'Bearer ' + os.environ["SLACK_BOT_TOKEN"],
-          'Content-Type': 'application/json'
-        },
-        data=json_data
-    )
-    res_data = res.json()
-    print(f'response: {res_data.get}')
+        data = {
+            "title": title,
+            "document_content": {"type": "markdown", "markdown": "> standalone canvas!" + content}
+        }
+        res_data = send_slack_request('canvases.create', data)
+        print(f'response: {res_data}')
 
-    if res_data.get('ok'):
-        canvas_id = res_data.get('canvas_id')
-    else:
-        error_message = res_data.get('error')
+        if res_data.get('ok'):
+            canvas_id = res_data.get('canvas_id')
+        else:
+            error_message = res_data.get('error')
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"Failed to create canvas: {error_message}"
+            )
+            return
+
+        print(f"user_id: {user_id}")
+        #アクセス権の付与
+        data1 = {
+            "canvas_id": canvas_id,
+            "access_level": "write",
+            "user_ids": "['" + user_id + "']"
+        }
+        res_data = send_slack_request('canvases.access.set', data1)
+        print(f'response: {res_data}')
+        if res_data.get('ok') is False:
+            error_message = res_data.get('error')
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"Failed to access set : {error_message}"
+            )
+            
+        # Canvas APIを使ってコンテンツを作成
+        # canvas_id = app.client.canvases_create(
+        #     title = title,
+        #     owner_id = user_id,
+        #     document_content = document_content
+        # )
+        print(f'canvas_id: {canvas_id}')
+        if canvas_id is None:
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"Failed to create canvas: {res_data}"
+            )
+            return
+
+        # 結果をユーザーに通知
         client.chat_postMessage(
             channel=user_id,
-            text=f"Failed to create canvas: {error_message}"
+            text=f"Canvasを作成しました \nid: {canvas_id} \ntitle: {title} \n url: https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
         )
-        return
-
-    # Canvas APIを使ってコンテンツを作成
-    # canvas_id = app.client.canvases_create(
-    #     title = title,
-    #     owner_id = user_id,
-    #     document_content = document_content
-    # )
-    
-    # 結果をユーザーに通知
-    client.chat_postMessage(
-        channel=user_id,
-        text=f"Canvasを作成しました \nid: {canvas_id} \ntitle: {title} \n url: `https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}`"
-    )
+    except Exception as e:
+        print(f"Error: {e}")
 
 # Canvas編集コマンドのハンドラー
 @app.command("/edit_canvas")
@@ -188,145 +238,69 @@ def handle_edit_canvas(ack: Ack, body: dict, client: WebClient):
     ack()
     user_id = body['user_id']
     trigger_id = body['trigger_id']
-    
 
-    view = {
-        "type": "modal",
-        "callback_id": "edit_canvas_view",
-        "title": {
-            "type": "plain_text",
-            "text": "Canvasの更新"
-        },
-        "blocks": [
-              {
-                  "type": "input",
-                  "block_id": "users_select",
-                  "label": {
-                      "type": "plain_text",
-                      "text": "ユーザの選択"
-                  },
-                  "element": {
-                      "type": "users_select",
-                      "action_id": "users_select",
-                      "placeholder": {
-                          "type": "plain_text",
-                          "text": "Select users"
-                      }
-                  }
-              },
-            {
-                "type": "input",
-                "block_id": "title_block",
-                "label": {
-                    "type": "plain_text",
-                    "text": "タイトル"
-                },
-                "element": {
-                    "type": "plain_text_input",
-                    "action_id": "title_input",
-                }
-            },
-            {
-                "type": "input",
-                "block_id": "canvas_id_block",
-                "label": {
-                    "type": "plain_text",
-                    "text": "Canvas ID"
-                },
-                "element": {
-                    "type": "plain_text_input",
-                    "action_id": "canvas_id",
-                }
-            },
-            {
-                "type": "input",
-                "block_id": "content_block",
-                "label": {
-                    "type": "plain_text",
-                    "text": "コンテンツ"
-                },
-                "element": {
-                    "type": "plain_text_input",
-                    "action_id": "content_input",
-                    "multiline": True
-                }
-            }
-        ],
-        "submit": {
-            "type": "plain_text",
-            "text": "Submit"
-        }
-    }
+    view = create_modal_view(
+        "edit_canvas_view",
+        "Canvasの更新",
+        canvas=True
+    )
 
     client.views_open(trigger_id=trigger_id, view=view)
 
 # Canvas編集モーダルのサブミッションハンドラー
 @app.view("edit_canvas_view")
 def handle_edit_view_submission(ack: Ack, view: dict, logger: logging.Logger):
-    ack()
-    state_values = view['state']['values']
-    user_id = state_values['users_select']['users_select']['selected_user']
-    canvas_id = state_values['canvas_id_block']['canvas_id']['value']
-    title = state_values['title_block']['title_input']['value']
-    content = state_values['content_block']['content_input']['value']
-    print(f"user_id: {user_id}")
-    print(f"canvas_id: {canvas_id}" )
+    try:
+        ack()
+        state_values = view['state']['values']
+        user_id = state_values['users_select']['users_select']['selected_user']
+        canvas_id = state_values['canvas_id_block']['canvas_id']['value']
+        title = state_values['title_block']['title_input']['value']
+        content = state_values['content_block']['content_input']['value']
+        print(f"user_id: {user_id}")
+        print(f"canvas_id: {canvas_id}")
 
-    data = {
-        "canvas_id": canvas_id,
-        "criteria": '{"contains_text":"canvas"}'
-    }
-    #セクションを取得
-    json_data = json.dumps(data)
-    res = requests.post('https://slack.com/api/canvases.sections.lookup ',
-        headers = {
-          'Authorization': 'Bearer ' + os.environ["SLACK_BOT_TOKEN"],
-          'Content-Type': 'application/json'
-        },
-        data=json_data
-    )
-    res_data = res.json()
-    print(f'res_data: {res_data}')
-    sections = res_data.get('sections')[0]
-    section = sections.get('id')
-    
-    print(f'section: {section}')
-    data = {
-        "title": title,
-        "canvas_id": canvas_id,
-        "changes": [{"operation":"insert_after","document_content":{"type":"markdown","markdown":"content edit"},"section_id":section }]
-    }
-    # データをJSONに変換
-    json_data = json.dumps(data)
-    res = requests.post('https://slack.com/api/canvases.edit',
-        headers = {
-          'Authorization': 'Bearer ' + os.environ["SLACK_BOT_TOKEN"],
-          'Content-Type': 'application/json'
-        },
-        data=json_data
-    )
-    res_data = res.json()
-    print(f'response: {res_data.get}')
+        #セクションの取得
+        data = {
+            "canvas_id": canvas_id,
+            "criteria": '{"contains_text":"canvas"}'
+        }
+        res_data = send_slack_request('canvases.sections.lookup', data)
+        print(f'res_data: {res_data}')
+        sections = res_data.get('sections')[0]
+        section = sections.get('id')
 
-    if res_data.get('ok'):
-      # 結果をユーザーに通知
-      client.chat_postMessage(
-          channel=user_id,
-          text=f"Canvas を更新しました title: {title} \n url: `https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
-      )
-    else:
-        error_message = res_data.get('error')
-        client.chat_postMessage(
-            channel=user_id,
-            text=f"Failed to create canvas: {error_message}"
-        )
-        return
-    # Canvas APIを使ってコンテンツを更新
-    # canvas_response = client.canvases_edit(
-    #     token = os.environ["SLACK_BOT_TOKEN"],
-    #     canvas_id = canvas_id,
-    #     changes = document_content
-    # )
+        print(f'section: {section}')
+        data = {
+            "title": title,
+            "canvas_id": canvas_id,
+            "changes": [{"operation": "insert_after", "document_content": {"type": "markdown", "markdown": "content edit"}, "section_id": section}]
+        }
+        res_data = send_slack_request('canvases.edit', data)
+        print(f'response: {res_data}')
+
+        if res_data.get('ok'):
+            # 結果をユーザーに通知
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"Canvas を更新しました title: {title} \n url: https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
+            )
+        else:
+            error_message = res_data.get('error')
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"Failed to create canvas: {error_message}"
+            )
+            return
+
+        # Canvas APIを使ってコンテンツを更新
+        # canvas_response = client.canvases_edit(
+        #     token = os.environ["SLACK_BOT_TOKEN"],
+        #     canvas_id = canvas_id,
+        #     changes = document_content
+        # )
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     handler = SocketModeHandler(app, os.environ.get("SLACK_APP_TOKEN"))
