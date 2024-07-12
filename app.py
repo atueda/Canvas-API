@@ -33,23 +33,8 @@ def send_slack_request(endpoint, data):
     return res.json()
 
 def create_modal_view(callback_id, title, canvas=False):
-    blocks = []
-    if canvas:
-        blocks.append({
-            "type": "input",
-            "block_id": "canvas_id_block",
-            "label": {
-                "type": "plain_text",
-                "text": "Canvas ID"
-            },
-            "element": {
-                "type": "plain_text_input",
-                "action_id": "canvas_id"
-            }
-        })
-    
-    blocks.extend([
-        {
+    blocks = [
+                {
             "type": "input",
             "block_id": "users_select",
             "label": {
@@ -65,6 +50,22 @@ def create_modal_view(callback_id, title, canvas=False):
                 }
             }
         },
+    ]
+    if canvas:
+        blocks.append({
+            "type": "input",
+            "block_id": "canvas_id_block",
+            "label": {
+                "type": "plain_text",
+                "text": "Canvas ID"
+            },
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "canvas_id"
+            }
+        })
+    else :
+        blocks.extend([
         {
             "type": "input",
             "block_id": "title_block",
@@ -77,6 +78,9 @@ def create_modal_view(callback_id, title, canvas=False):
                 "action_id": "title_input",
             }
         },
+    ])
+        
+    blocks.extend([
         {
             "type": "input",
             "block_id": "content_block",
@@ -176,32 +180,48 @@ def handle_create_view_submission(ack: Ack, view: dict, logger: logging.Logger):
         user_id = state_values['users_select']['users_select']['selected_user']
         title = state_values['title_block']['title_input']['value']
         content = state_values['content_block']['content_input']['value']
-
+        channel = "C07C4AF1DNW"
+        print(f"user_id: {user_id}")
+        
+        #ChannelでCanvas作成
+        data1 = {
+            "channel_id": channel,
+            "title": title,
+            "document_content": {"type": "markdown", "markdown": "### " + content +"\n> standalone canvas in Channel!"}
+        }
+        res_data = send_slack_request('conversations.canvases.create', data1)
+        try: 
+            if res_data.get('ok'):
+                canvas_id = res_data.get('canvas_id')
+                # 結果をユーザーに通知
+                client.chat_postMessage(
+                    channel=channel,
+                    text=f"Canvasを作成しました \nid: {canvas_id} \ntitle: {title} \n url: https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
+                )
+            else:
+                error_message = res_data.get('error')
+                client.chat_postMessage(
+                    channel=channel,
+                    text=f"Failed to create canvas in Channel : {error_message}"
+                )
+        except Exception as e:
+            pass
+        
+        #Canvas作成
         data = {
             "title": title,
-            "document_content": {"type": "markdown", "markdown": "> standalone canvas!" + content}
+            "document_content": {"type": "markdown", "markdown": "## " + content +"\n> standalone canvas!"}
         }
         res_data = send_slack_request('canvases.create', data)
         print(f'response: {res_data}')
-
-        if res_data.get('ok'):
-            canvas_id = res_data.get('canvas_id')
-        else:
-            error_message = res_data.get('error')
-            client.chat_postMessage(
-                channel=user_id,
-                text=f"Failed to create canvas: {error_message}"
-            )
-            return
-
-        print(f"user_id: {user_id}")
+        canvas_id = res_data.get('canvas_id')
         #アクセス権の付与
-        data1 = {
+        data2 = {
             "canvas_id": canvas_id,
             "access_level": "write",
             "user_ids": "['" + user_id + "']"
         }
-        res_data = send_slack_request('canvases.access.set', data1)
+        res_data = send_slack_request('canvases.access.set', data2)
         print(f'response: {res_data}')
         if res_data.get('ok') is False:
             error_message = res_data.get('error')
@@ -255,7 +275,7 @@ def handle_edit_view_submission(ack: Ack, view: dict, logger: logging.Logger):
         state_values = view['state']['values']
         user_id = state_values['users_select']['users_select']['selected_user']
         canvas_id = state_values['canvas_id_block']['canvas_id']['value']
-        title = state_values['title_block']['title_input']['value']
+        #title = state_values['title_block']['title_input']['value']
         content = state_values['content_block']['content_input']['value']
         print(f"user_id: {user_id}")
         print(f"canvas_id: {canvas_id}")
@@ -272,18 +292,25 @@ def handle_edit_view_submission(ack: Ack, view: dict, logger: logging.Logger):
 
         print(f'section: {section}')
         data = {
-            "title": title,
             "canvas_id": canvas_id,
-            "changes": [{"operation": "insert_after", "document_content": {"type": "markdown", "markdown": "content edit"}, "section_id": section}]
+            "changes": [{"operation": "insert_after", "document_content": {"type": "markdown", "markdown": "content edit\n" + content}, "section_id": section}]
         }
         res_data = send_slack_request('canvases.edit', data)
-        print(f'response: {res_data}')
 
+        # Canvas APIを使ってコンテンツを更新
+        # res = client.canvases_edit(
+        #     token = os.environ["SLACK_BOT_TOKEN"],
+        #     canvas_id = canvas_id,
+        #     changes = [{"operation": "insert_after", "document_content": {"type": "markdown", "markdown": "content edit"}, "section_id": section}]
+        # )
+        # res_data = res.json()
+
+        print(f'response: {res_data}')
         if res_data.get('ok'):
             # 結果をユーザーに通知
             client.chat_postMessage(
                 channel=user_id,
-                text=f"Canvas を更新しました title: {title} \n url: https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
+                text=f"Canvas を更新しました \nid: {canvas_id}\n url: https://autest-dev1.slack.com/docs/T05SD2E14R3/{canvas_id}"
             )
         else:
             error_message = res_data.get('error')
@@ -293,12 +320,6 @@ def handle_edit_view_submission(ack: Ack, view: dict, logger: logging.Logger):
             )
             return
 
-        # Canvas APIを使ってコンテンツを更新
-        # canvas_response = client.canvases_edit(
-        #     token = os.environ["SLACK_BOT_TOKEN"],
-        #     canvas_id = canvas_id,
-        #     changes = document_content
-        # )
     except Exception as e:
         print(f"Error: {e}")
 
